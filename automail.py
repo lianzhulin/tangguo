@@ -38,11 +38,28 @@ def send(message):
 
     return
 
-if __name__ == '__main__':
+if __name__ == '__xxmain__':
     message = MIMEText('Python 邮件发送测试...')#, 'plain', 'utf-8')
     message['To'] = mail_tooo   #yourname@example.com
     message['Cc'] = ''
     message['Subject'] = 'Python SMTP Test'
 
     send(message)   #send test
-    pass
+
+def send_mail(head, context):
+    message = MIMEText(context)#, 'plain', 'utf-8')
+    for n, v in head.items():
+        message.add_header(n, v)
+
+    #print(type(message), message.as_string())
+    send(message)
+    return
+
+if __name__ == '__main__':
+    send_mail({
+            'To' : mail_tooo,   #yourname@example.com
+            'Cc' : '',
+            'Subject' : 'Python SMTP Test',
+        }, '''
+Python 邮件发送测试...
+        ''')
