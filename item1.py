@@ -13,6 +13,8 @@ import filecmp, time
 from datetime import datetime
 from pathlib import Path
 
+VALID_YEARS = range(2000, datetime.now().year + 1)
+
 # ANSI color names.
 COLORS = dict(zip('UEIWSRUU', zip(('black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'), range(30, 38))))
 def _myprint(*args, **kwargs):
@@ -27,6 +29,20 @@ def _myprint(*args, **kwargs):
     builtins.print(*args, **kwargs)
     return
  
+def setupHomeDirectory(src_dir):
+    if src_dir.parent != src_dir.parent.parent:
+        #print(src_dir.parent)
+        res = setupHomeDirectory(src_dir.parent)
+        if res:
+            return res
+
+    m = re.match(r'(\d{4})([@]+)(.*)', src_dir.name) #2018@balabala
+    if m:
+        print ('Got home dir', src_dir) #got it
+        return src_dir
+
+    return
+
 def removeEmptyDirectories(empty_dir, counts = 0):
     for subdir in Path(empty_dir).iterdir():
         counts += 1
@@ -51,10 +67,22 @@ def getDatetimeFromParent(img_file):
 
 def getDatetimeFromName(img_file):
     name_dt = None
+
+    'check camera file name pattern, like MA201409290822480045-52-000000000.jpg'
     m = re.match(r'\D*(20\d{6})', img_file.name)
     if m:
         name_dt = datetime.strptime(m.group(1)[:8], '%Y%m%d')
         #print('name dt', name_dt)
+        return name_dt
+
+    'check mmexport file name pattern, like mmexport1479703084838.jpg'
+    m = re.match(r'\D*(1[345]\d{11})', img_file.name)
+    if m:
+        name_dt = datetime.fromtimestamp(float(m.group(1))/1e3)
+        if name_dt.year in VALID_YEARS:
+            #print('name dt', name_dt)
+            return name_dt
+
     return name_dt
 
 def getDatetimeFromImage(img_file):
@@ -67,7 +95,9 @@ def getDatetimeFromImage(img_file):
     for t, v in tags.items():
         if re.search('DateTime.*', t):
             try:
-                res = datetime.strptime(str(v).strip(), '%Y:%m:%d %H:%M:%S')
+                v2 = str(v).strip()
+                res = datetime.fromtimestamp(float(v2)) if v2.isdigit() else datetime.strptime(v2, '%Y:%m:%d %H:%M:%S')
+                #print((t, v), res)
                 if not img_dt or res < img_dt:
                     img_dt = res
             except ValueError:
@@ -82,10 +112,17 @@ print = _myprint
 class Groups():
     def __init__(self, src_dir):
         self.src_dir = Path(src_dir).resolve()
-        self.new_dir = self.home_dir = Path(self.src_dir.anchor, datetime.now().strftime('%Y%m%d'))
-        if re.match(r'(\d{8})$', self.src_dir.name): #source is temp directory, auto setup target out directory in the same disk.
-            self.new_dir = self.home_dir = Path(self.src_dir.anchor, datetime.now().strftime('%Y%m')+'@' + '{}'.format(os.environ.get('USERNAME')))
-            print('S/Target out directory is', self.home_dir)
+        if re.match(r'(\d{8})$', self.src_dir.name): #source is temp directory, auto setup target out directory
+            self.home_dir = Path(self.src_dir.anchor, datetime.now().strftime('%Y')+'@' + '{}'.format(os.environ.get('USERNAME')))
+        else:
+            self.home_dir = setupHomeDirectory(self.src_dir)
+
+        if not self.home_dir:
+            self.home_dir = Path(self.src_dir.anchor, datetime.now().strftime('%Y%m%d')) #target is temp directory either
+
+        print('S/Target out collection directory is', self.home_dir)
+        self.new_dir = self.home_dir
+
         self.succ_cnt, self.fail_cnt = 0, 0
         self.fail_not_match_cnt, self.succ_force_assigned_cnt = 0, 0
         self.duplicated_cnt, self.fail_conflict_cnt = 0, 0
@@ -142,6 +179,7 @@ class Groups():
         
     def build(self):
         print('\n')
+        #return
         for f in self.src_dir.glob('**/*.jpg'):
             print('\r', end='')    #Carriage return
             print('Processing', f.relative_to(self.src_dir), '...', end='')
@@ -154,7 +192,8 @@ class Groups():
 
         '''Summary the results and remove some unused directories'''    
         print('\n')
-        print('I/Image Datetime range {} .. {}\n'.format(self.min_dt, self.max_dt))
+        if self.max_dt != datetime.min:
+            print('I/Image Datetime range {} .. {}\n'.format(self.min_dt, self.max_dt))
         if self.FAILURE_FILES:
             print('E/Total ({}) Failure Files:'.format(len(self.FAILURE_FILES)))
             for f in self.FAILURE_FILES:
@@ -170,6 +209,7 @@ class Groups():
 if __name__ == '__main__':
     print(sys.argv)
     #print(removeEmptyDirectories(r'D:\temp'))
+    #setupHomeDirectory(Path(sys.argv[1]))
     if len(sys.argv) > 1:
         src_dir = Path(sys.argv[1])
         if (src_dir.is_dir()):
