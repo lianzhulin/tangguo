@@ -8,7 +8,7 @@
 用法：将脚本和照片放于同一目录，双击运行脚本即可
 
 """
-import os, sys, re, builtins, exifread
+import os, sys, re, builtins, exifread, hashlib
 import filecmp, time
 from datetime import datetime
 from pathlib import Path
@@ -53,10 +53,10 @@ def removeEmptyDirectories(empty_dir, counts = 0):
 
     return counts
 
-def getDatetimeFromParent(img_file):
+def getDatetimeFromDName(img_file):
     dir_dt, is_assigned, dir_comments = None, False, None
-    #print(img_file.parent.name)
-    m = re.match(r'(\d{8})([@-]*)(.*)', img_file.parent.name)
+    #print(img_file.name)
+    m = re.match(r'(\d{8})([@-]*)(.*)', img_file.name)
     if m:
         #print(m.groups())
         dir_dt = datetime.strptime(m.group(1)[:8], '%Y%m%d')
@@ -105,7 +105,7 @@ def getDatetimeFromImage(img_file):
                     print((t, v))
                 #break
     #print(Path(img_file).name, img_dt)
-    return img_dt, getDatetimeFromName(img_file), getDatetimeFromParent(img_file)
+    return img_dt, getDatetimeFromName(img_file), getDatetimeFromDName(img_file.parent)
 
 print = _myprint
 
@@ -204,7 +204,61 @@ class Groups():
             if res == 0: #Remove source main directory. The directory must be empty.
                 print('W/Removing source main directory', self.src_dir)
                 self.src_dir.rmdir()
-        return
+        return self
+
+    def deepclean_one(self, last_dir_dt, last_subdir):
+        if last_subdir and len(last_subdir) > 1:
+            #print('W/deepclean on', last_dir_dt, last_subdir)
+            all_items, dup_items = [], []
+
+            for s in last_subdir: all_items.extend(sorted(s.iterdir(), key=lambda x: x.stem))
+            #print('all_items', len(all_items), all_items)
+            for i, f, in enumerate(all_items[:-1]):
+                if f in dup_items: continue
+                dup = list(filter(lambda n: filecmp.cmp(f, n), all_items[i+1:]))
+                if dup:
+                    print('W/Removing dup', f, dup)
+                    for n in dup:
+                        hash1 = hashlib.md5(f.open('rb').read())
+                        hash2 = hashlib.md5(n.open('rb').read())
+                        if f != n and hash1.hexdigest() == hash2.hexdigest(): #filecmp.cmp(f, n):  #double confirm for unlink dup items
+                            dup_items.append(n)
+                        else:
+                            print('\tNOT SAME AS', f, n)
+                            pass
+
+            #remove all duplicate files
+            for file in dup_items:
+                print('E/Removing dup file', file)
+                file.unlink()
+
+            return
+
+    def deepclean(self):
+        print('I/Deepcleanning out collection directory', self.home_dir)
+        for year in self.home_dir.iterdir():
+            if not year.name.isdigit(): continue
+            print(year)
+            last_dir_dt = None
+            last_subdir = []
+            for subdir in sorted(year.iterdir(), reverse=True):
+                print('\r', end='')    #Carriage return
+                dir_dt, dir_comments, is_assigned = getDatetimeFromDName(subdir)
+                if dir_dt == last_dir_dt:
+                    print('\t', subdir.name, end='...\t')
+                    last_subdir.append(subdir)
+                    pass
+                else:
+                    self.deepclean_one(last_dir_dt, last_subdir)
+                    print('\t', subdir.name, end='...\t')
+                    last_dir_dt = dir_dt
+                    last_subdir = [subdir]
+
+            self.deepclean_one(last_dir_dt, last_subdir)
+            print('\n')
+            #break
+
+        return self
 
 if __name__ == '__main__':
     print(sys.argv)
@@ -213,7 +267,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         src_dir = Path(sys.argv[1])
         if (src_dir.is_dir()):
-            Groups(src_dir).build()
+            Groups(src_dir).build().deepclean()
         else:
             print('E/Not found directory', src_dir)
     pass
