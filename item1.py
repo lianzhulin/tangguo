@@ -13,7 +13,7 @@ import filecmp, time
 from datetime import datetime
 from pathlib import Path
 
-VALID_YEARS = range(2000, datetime.now().year + 1)
+VALID_YEARS = range(1997, datetime.now().year + 1)
 
 # ANSI color names.
 COLORS = dict(zip('UEIWSRUU', zip(('black', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan', 'white'), range(30, 38))))
@@ -127,8 +127,7 @@ class Groups():
         self.fail_not_match_cnt, self.succ_force_assigned_cnt = 0, 0
         self.duplicated_cnt, self.fail_conflict_cnt = 0, 0
         self.FAILURE_FILES = []
-        self.min_dt = datetime.max
-        self.max_dt = datetime.min
+        self.min_dt, self.max_dt = datetime.max, datetime.min
         return
 
     def build_one(self, f):
@@ -235,15 +234,19 @@ class Groups():
             return
 
     def deepclean(self):
-        print('I/Deepcleanning out collection directory', self.home_dir)
+        if not self.src_dir.name.isdigit() or int(self.src_dir.name) not in VALID_YEARS:
+            #print(self.src_dir.name)
+            return
+
+        print('I/Deepcleanning out collection directory', self.home_dir, '@', (self.min_dt.year, self.max_dt.year))
         for year in self.home_dir.iterdir():
-            if not year.name.isdigit(): continue
+            if not year.name.isdigit() or int(year.name) not in range(self.min_dt.year, self.max_dt.year+1): continue
             print(year)
             last_dir_dt = None
             last_subdir = []
             for subdir in sorted(year.iterdir(), reverse=True):
                 print('\r', end='')    #Carriage return
-                dir_dt, dir_comments, is_assigned = getDatetimeFromDName(subdir)
+                dir_dt, _, _ = getDatetimeFromDName(subdir)
                 if dir_dt == last_dir_dt:
                     print('\t', subdir.name, end='...\t')
                     last_subdir.append(subdir)
