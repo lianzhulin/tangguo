@@ -36,7 +36,7 @@ def setupHomeDirectory(src_dir):
         if res:
             return res
 
-    m = re.match(r'(\d{4})([@]+)(.*)', src_dir.name) #2018@balabala
+    m = re.match(r'(\d{4})([~@]+)(.*)', src_dir.name) #2018@balabala
     if m:
         print ('Got home dir', src_dir) #got it
         return src_dir
@@ -68,12 +68,13 @@ def getDatetimeFromDName(img_file):
 def getDatetimeFromName(img_file):
     name_dt = None
 
-    'check camera file name pattern, like MA201409290822480045-52-000000000.jpg'
-    m = re.match(r'\D*(20\d{6})', img_file.name)
+    'check camera file name pattern, like MA201409290822480045-52-000000000.jpg, 2014-03-15 12.19.07.jpg, PIC_20140531_133012_16A.jpg'
+    m = re.match(r'\D*(20\d{2})[-]*(\d{2})[-]*(\d{2})', img_file.name)
     if m:
-        name_dt = datetime.strptime(m.group(1)[:8], '%Y%m%d')
-        #print('name dt', name_dt)
-        return name_dt
+        name_dt = datetime.strptime(''.join(m.groups()), '%Y%m%d')
+        if name_dt.year in VALID_YEARS:
+            #print('name dt', name_dt)
+            return name_dt
 
     'check mmexport file name pattern, like mmexport1479703084838.jpg'
     m = re.match(r'\D*(1[345]\d{11})', img_file.name)
